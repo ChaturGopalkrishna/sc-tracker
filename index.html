@@ -320,7 +320,7 @@ function renderHome(){
     const lastSession=S.history.filter(h=>h.dayIdx===i).slice(-1)[0];
     html+=`<div class="day-card${exCount?' has-data':''}" onclick="openDay(${i})">
       <button class="day-delete" onclick="event.stopPropagation();deleteDay(${i})">${svgTrash()}</button>
-      <div class="day-label-num">Day ${i+1}</div>
+      <div class="day-label-num">${d.date?fmtDate(d.date):'Day '+(i+1)}</div>
       <div class="day-name">${d.name}</div>
       <div class="day-focus">${d.focus||'General'}</div>
       <div class="day-count">${exCount} exercise${exCount!==1?'s':''}</div>
@@ -341,41 +341,42 @@ function deleteDay(i){
 // ─── ADD DAY ─────────────────────────────────────────────────────────────────
 function showAddDay(){
   const el=document.getElementById('screenAddDay');
-  const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  const existing=new Set(S.days.map(d=>d.name));
-  el.innerHTML=`<div class="sec-label">Pick a day</div>
+  const todayVal=todayStr();
+  el.innerHTML=`<div class="sec-label">New training day</div>
     <div class="form-wrap">
       <div class="form-card">
         <div class="form-row">
-          <label class="form-label">Day of week</label>
-          <div class="day-chip-grid" id="dayChips">
-            ${days.map(d=>`<div class="day-chip${existing.has(d)?' chip-used':''}" onclick="pickDayChip(this,'${d}')" data-day="${d}">${d.slice(0,3)}</div>`).join('')}
-          </div>
-          <div style="margin-top:10px">
-            <label class="form-label">Or custom name</label>
-            <input class="form-input" id="newDayName" placeholder="e.g. Day A / Upper 1" oninput="clearChips()" />
-          </div>
+          <label class="form-label">Select date</label>
+          <input class="form-input" type="date" id="newDayDate" value="${todayVal}" onchange="onDatePick(this.value)" style="color-scheme:dark" />
         </div>
-        <div class="form-row"><label class="form-label">Focus / muscle group</label><input class="form-input" id="newDayFocus" placeholder="e.g. Lower body · Squats" /></div>
+        <div class="form-row">
+          <label class="form-label">Day name</label>
+          <input class="form-input" id="newDayName" placeholder="e.g. Monday 23 Jun" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Focus / muscle group</label>
+          <input class="form-input" id="newDayFocus" placeholder="e.g. Lower body · Squats" />
+        </div>
         <button class="btn btn-primary" onclick="saveDay()">Save day</button>
       </div>
     </div>`;
   push('AddDay','New day');
+  onDatePick(todayVal);
 }
 
-function pickDayChip(el,name){
-  document.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('chip-sel'));
-  el.classList.add('chip-sel');
-  document.getElementById('newDayName').value=name;
-}
-function clearChips(){
-  document.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('chip-sel'));
+function onDatePick(val){
+  if(!val) return;
+  const d=new Date(val+'T00:00:00');
+  const dayName=d.toLocaleDateString('en-GB',{weekday:'long'});
+  const dateStr=d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  document.getElementById('newDayName').value=`${dayName} ${dateStr}`;
 }
 
 function saveDay(){
   const name=document.getElementById('newDayName').value.trim();
-  if(!name){toast('Pick a day or enter a name');return;}
-  S.days.push({name,focus:document.getElementById('newDayFocus').value.trim(),exercises:[]});
+  const date=document.getElementById('newDayDate').value;
+  if(!name){toast('Enter a day name');return;}
+  S.days.push({name,date,focus:document.getElementById('newDayFocus').value.trim(),exercises:[]});
   save(); toast('Day added ✓'); goBack(); renderHome();
 }
 
