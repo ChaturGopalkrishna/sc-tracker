@@ -182,13 +182,6 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .session-bar{background:var(--surface);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;margin:0 16px 10px;display:flex;justify-content:space-between;align-items:center}
 .session-bar span{font-size:12px;color:var(--accent)}
 .session-btn{background:var(--accent);border:none;color:#111;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px}
-
-/* DAY CHIPS */
-.day-chip-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
-.day-chip{background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--radius-sm);padding:10px 4px;text-align:center;font-size:13px;font-weight:500;cursor:pointer;transition:border-color .15s,background .15s;color:var(--text)}
-.day-chip:active{transform:scale(.95)}
-.day-chip.chip-sel{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
-.day-chip.chip-used{opacity:.35;pointer-events:none}
 </style>
 </head>
 <body>
@@ -209,6 +202,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 <div id="screenHistory" class="screen"></div>
 <div id="screenStats" class="screen"></div>
 <div id="screenAddDay" class="screen"></div>
+<div id="screenProfile" class="screen"></div>
 <div id="screenAddExercise" class="screen"></div>
 
 <!-- BOTTOM NAV -->
@@ -296,6 +290,11 @@ function goBack(){
     act.style.display='block';
     window._topActionFn=()=>showAddExercise();
     renderDay();
+  } else if(prev==='Profile'){
+    document.getElementById('topTitle').textContent='Training Log';
+    document.getElementById('backBtn').style.display='none';
+    document.getElementById('topAction').style.display='none';
+    nav('Home');
   } else {
     document.getElementById('topTitle').textContent=prev;
     document.getElementById('backBtn').style.display=navStack.length>1?'flex':'none';
@@ -330,9 +329,12 @@ function renderHome(){
   let profHtml=`<div style="display:flex;align-items:center;gap:8px;padding:10px 16px 0;flex-wrap:wrap">`;
   profiles.forEach((pr,i)=>{
     const active=i===currentProfileIdx;
-    profHtml+=`<div onclick="switchProfile(${i})" style="display:flex;align-items:center;gap:6px;background:${active?'var(--accent-dim)':'var(--surface)'};border:1.5px solid ${active?'var(--accent2)':'var(--border)'};border-radius:20px;padding:5px 10px 5px 6px;cursor:pointer">
-      <div style="width:26px;height:26px;border-radius:50%;background:${active?'var(--accent)':'var(--surface3)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${active?'#111':'var(--muted)'}">${pr.initial||pr.name[0].toUpperCase()}</div>
-      <span style="font-size:12px;font-weight:${active?'600':'400'};color:${active?'var(--accent)':'var(--muted)'}">${pr.name}</span>
+    profHtml+=`<div style="display:flex;align-items:center;gap:0;background:${active?'var(--accent-dim)':'var(--surface)'};border:1.5px solid ${active?'var(--accent2)':'var(--border)'};border-radius:20px;overflow:hidden">
+      <div onclick="switchProfile(${i})" style="display:flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;cursor:pointer">
+        <div style="width:26px;height:26px;border-radius:50%;background:${active?'var(--accent)':'var(--surface3)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${active?'#111':'var(--muted)'}">${pr.initial||pr.name[0].toUpperCase()}</div>
+        <span style="font-size:12px;font-weight:${active?'600':'400'};color:${active?'var(--accent)':'var(--muted)'}">${pr.name}</span>
+      </div>
+      <div onclick="showManageProfile(${i})" style="padding:5px 8px 5px 2px;cursor:pointer;color:${active?'var(--accent2)':'var(--hint)'};font-size:13px">⚙️</div>
     </div>`;
   });
   profHtml+=`<div onclick="showAddProfile()" style="width:32px;height:32px;border-radius:50%;background:var(--surface);border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--hint);cursor:pointer">+</div>`;
@@ -393,9 +395,107 @@ function saveProfile2(){
   const name=document.getElementById('profName').value.trim();
   if(!name){toast('Enter a name');return;}
   profiles.push({name,initial:name[0].toUpperCase(),days:[],history:[]});
-  save();
-  toast(name+' added ✓');
+  save(); toast(name+' added ✓'); goBack(); renderHome();
+}
+
+function showManageProfile(i){
+  const pr=profiles[i];
+  const el=document.getElementById('screenProfile');
+  const isOnly=profiles.length===1;
+  el.innerHTML=`
+    <div class="sec-label">Manage profile</div>
+    <div class="form-wrap">
+
+      <div class="form-card">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#111">${pr.initial||pr.name[0].toUpperCase()}</div>
+          <div><div style="font-size:16px;font-weight:600">${pr.name}</div><div style="font-size:11px;color:var(--muted)">${pr.days?.length||0} days · ${pr.history?.length||0} sessions</div></div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Rename</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-input" id="profRenameInput" value="${pr.name}" style="flex:1" />
+            <button class="btn btn-primary btn-sm" style="margin-top:0;white-space:nowrap" onclick="renameProfile(${i})">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Export saves all your days, exercises and history as a JSON file. Import it on another device or share it.</div>
+        <button class="btn" onclick="exportProfile(${i})">📤 Export profile</button>
+        <div style="margin-top:10px">
+          <label class="form-label">Import profile data</label>
+          <input type="file" accept=".json" id="importFile" style="display:none" onchange="importProfile(${i},this)" />
+          <button class="btn" onclick="document.getElementById('importFile').click()">📥 Import from file</button>
+          <div style="font-size:10px;color:var(--hint);margin-top:4px">⚠️ This will overwrite this profile's data</div>
+        </div>
+      </div>
+
+      ${!isOnly?`<div class="form-card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Deleting a profile removes all its days, exercises and history permanently.</div>
+        <div id="deleteProfConfirm" style="display:none;margin-bottom:8px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center">Delete "${pr.name}"? This cannot be undone.</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-danger btn-sm" style="flex:1;margin-top:0" onclick="deleteProfile(${i})">Yes, delete</button>
+            <button class="btn btn-sm" style="flex:1;margin-top:0" onclick="document.getElementById('deleteProfConfirm').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <button class="btn btn-danger" onclick="document.getElementById('deleteProfConfirm').style.display='block'">${svgTrash()} Delete profile</button>
+      </div>`:'<div style="padding:0 16px;font-size:11px;color:var(--hint)">Cannot delete the only profile.</div>'}
+
+    </div>`;
+  push('Profile', pr.name+' · Settings');
+}
+
+function renameProfile(i){
+  const val=document.getElementById('profRenameInput').value.trim();
+  if(!val){toast('Enter a name');return;}
+  profiles[i].name=val;
+  profiles[i].initial=val[0].toUpperCase();
+  save(); toast('Renamed ✓');
+  showManageProfile(i);
+}
+
+function deleteProfile(i){
+  if(currentProfileIdx===i) currentProfileIdx=0;
+  else if(currentProfileIdx>i) currentProfileIdx--;
+  profiles.splice(i,1);
+  loadProfile(); save();
+  toast('Profile deleted');
   goBack(); renderHome();
+}
+
+function exportProfile(i){
+  const pr=profiles[i];
+  const data=JSON.stringify({exportedProfile:pr,exportedAt:new Date().toISOString()},null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`sc-tracker-${pr.name.toLowerCase().replace(/\s+/g,'-')}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('Exported ✓');
+}
+
+function importProfile(i,input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      const pr=data.exportedProfile||data;
+      if(!pr.name||!Array.isArray(pr.days)){toast('Invalid file');return;}
+      profiles[i].days=pr.days||[];
+      profiles[i].history=pr.history||[];
+      profiles[i].name=pr.name;
+      profiles[i].initial=pr.name[0].toUpperCase();
+      if(i===currentProfileIdx) loadProfile();
+      save(); toast('Imported ✓');
+      showManageProfile(i);
+    }catch(err){ toast('Could not read file'); }
+  };
+  reader.readAsText(file);
 }
 
 // ─── LONG PRESS / SHARE ──────────────────────────────────────────────────────
