@@ -83,8 +83,6 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .set-input{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--text);font-size:13px;padding:7px 4px;width:100%;text-align:center}
 .set-input:focus{outline:none;border-color:var(--accent)}
 .set-rm{background:var(--accent-dim);border:1px solid transparent;border-radius:var(--radius-xs);color:var(--accent);font-size:12px;font-weight:700;padding:7px 4px;text-align:center;min-width:52px}
-.set-rpe{background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--text);font-size:13px;padding:7px 4px;width:100%;text-align:center}
-.set-rpe:focus{outline:none;border-color:var(--accent)}
 
 /* WAVE SECTION */
 .wave-sep{font-size:11px;font-weight:700;color:var(--purple);background:#1e1630;border-radius:6px;padding:4px 10px;margin:10px 0 6px;display:inline-block}
@@ -95,6 +93,12 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 
 /* DROP SET */
 .drop-arrow{font-size:10px;color:var(--coral);font-weight:700}
+
+/* NOTE */
+.note-toggle{background:none;border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--hint);font-size:14px;padding:5px 7px;line-height:1;cursor:pointer;transition:color .15s,border-color .15s}
+.note-toggle.note-active{color:var(--accent);border-color:var(--accent2)}
+.note-input{background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--muted);font-size:12px;padding:7px 10px;width:100%;font-style:italic}
+.note-input:focus{outline:none;border-color:var(--accent);color:var(--text)}
 
 /* 1RM CARD */
 .rm-block{background:var(--accent-dim);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:12px 14px;margin-top:12px;display:flex;justify-content:space-between;align-items:center}
@@ -229,7 +233,18 @@ let S = {days:[], history:[], currentDay:null, currentDate:null};
 try{ const raw=localStorage.getItem(STORE_KEY); if(raw) S=JSON.parse(raw); }catch(e){}
 S.days=S.days||[]; S.history=S.history||[];
 
-function save(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(S)); }catch(e){} }
+// Profiles: each profile has its own days+history
+const PROFILES_KEY='sc_profiles_v1';
+let profiles=[];
+let currentProfileIdx=0;
+try{ const r=localStorage.getItem(PROFILES_KEY); if(r){ const p=JSON.parse(r); profiles=p.profiles||[]; currentProfileIdx=p.current||0; }}catch(e){}
+if(!profiles.length){ profiles=[{name:'Me',initial:'M',days:S.days,history:S.history}]; currentProfileIdx=0; }
+function curProfile(){ return profiles[currentProfileIdx]; }
+function loadProfile(){ const p=curProfile(); S.days=p.days||[]; S.history=p.history||[]; }
+function saveProfile(){ curProfile().days=S.days; curProfile().history=S.history; localStorage.setItem(PROFILES_KEY,JSON.stringify({profiles,current:currentProfileIdx})); }
+loadProfile();
+
+function save(){ saveProfile(); }
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 let navStack=['Home'];
@@ -309,34 +324,117 @@ function svgTrash(){ return `<svg viewBox="0 0 24 24" width="15" height="15" fil
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 function renderHome(){
   const el=document.getElementById('screenHome');
+  const p=curProfile();
+
+  // Profile bar
+  let profHtml=`<div style="display:flex;align-items:center;gap:8px;padding:10px 16px 0;flex-wrap:wrap">`;
+  profiles.forEach((pr,i)=>{
+    const active=i===currentProfileIdx;
+    profHtml+=`<div onclick="switchProfile(${i})" style="display:flex;align-items:center;gap:6px;background:${active?'var(--accent-dim)':'var(--surface)'};border:1.5px solid ${active?'var(--accent2)':'var(--border)'};border-radius:20px;padding:5px 10px 5px 6px;cursor:pointer">
+      <div style="width:26px;height:26px;border-radius:50%;background:${active?'var(--accent)':'var(--surface3)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${active?'#111':'var(--muted)'}">${pr.initial||pr.name[0].toUpperCase()}</div>
+      <span style="font-size:12px;font-weight:${active?'600':'400'};color:${active?'var(--accent)':'var(--muted)'}">${pr.name}</span>
+    </div>`;
+  });
+  profHtml+=`<div onclick="showAddProfile()" style="width:32px;height:32px;border-radius:50%;background:var(--surface);border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--hint);cursor:pointer">+</div>`;
+  profHtml+=`</div>`;
+
   if(!S.days.length){
-    el.innerHTML=`<div class="empty"><div class="empty-icon">🏋️</div><div class="empty-title">No training days yet</div><div class="empty-sub">Add your first day to get started</div></div>
+    el.innerHTML=profHtml+`<div class="empty"><div class="empty-icon">🏋️</div><div class="empty-title">No training days yet</div><div class="empty-sub">Add your first day to get started</div></div>
       <div style="padding:0 16px"><button class="btn btn-primary" onclick="showAddDay()">+ Add training day</button></div>`;
     return;
   }
-  let html=`<div class="sec-label">Your days</div><div class="day-grid">`;
+  let html=profHtml+`<div class="sec-label">Your days</div><div class="day-grid">`;
   S.days.forEach((d,i)=>{
     const exCount=d.exercises?.length||0;
     const lastSession=S.history.filter(h=>h.dayIdx===i).slice(-1)[0];
-    html+=`<div class="day-card${exCount?' has-data':''}" onclick="openDay(${i})">
-      <button class="day-delete" onclick="event.stopPropagation();deleteDay(${i})">${svgTrash()}</button>
+    html+=`<div class="day-card${exCount?' has-data':''}" id="dayCard_${i}"
+      onclick="openDay(${i})"
+      oncontextmenu="event.preventDefault();shareDay(${i})"
+      ontouchstart="startLongPress(${i})" ontouchend="cancelLongPress()" ontouchmove="cancelLongPress()">
+      <button class="day-delete" onclick="event.stopPropagation();showDeleteDay(${i})">${svgTrash()}</button>
       <div class="day-label-num">${d.date?fmtDate(d.date):'Day '+(i+1)}</div>
       <div class="day-name">${d.name}</div>
       <div class="day-focus">${d.focus||'General'}</div>
       <div class="day-count">${exCount} exercise${exCount!==1?'s':''}</div>
       ${lastSession?`<div style="font-size:10px;color:var(--hint);margin-top:4px">Last: ${fmtDate(lastSession.date)}</div>`:''}
+      <div id="deleteDayBox_${i}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)" onclick="event.stopPropagation()">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Remove this day?</div>
+        <div style="display:flex;gap:6px">
+          <button style="flex:1;background:var(--red);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px;border-radius:6px" onclick="event.stopPropagation();deleteDay(${i})">Remove</button>
+          <button style="flex:1;background:var(--surface3);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:7px;border-radius:6px" onclick="event.stopPropagation();hideDeleteDay(${i})">Cancel</button>
+        </div>
+      </div>
     </div>`;
   });
   html+=`</div><div style="padding:0 16px"><button class="btn" onclick="showAddDay()" style="margin-top:12px">+ Add training day</button></div>`;
   el.innerHTML=html;
 }
 
-function deleteDay(i){
-  if(!confirm(`Delete "${S.days[i].name}"?`)) return;
-  S.days.splice(i,1);
-  S.history=S.history.filter(h=>h.dayIdx!==i).map(h=>({...h,dayIdx:h.dayIdx>i?h.dayIdx-1:h.dayIdx}));
-  save(); renderHome();
+// ─── PROFILES ────────────────────────────────────────────────────────────────
+function switchProfile(i){
+  save();
+  currentProfileIdx=i;
+  loadProfile();
+  save();
+  renderHome();
+  toast('Switched to '+profiles[i].name);
 }
+
+function showAddProfile(){
+  const el=document.getElementById('screenAddDay');
+  el.innerHTML=`<div class="sec-label">New profile</div>
+    <div class="form-wrap"><div class="form-card">
+      <div class="form-row"><label class="form-label">Name</label><input class="form-input" id="profName" placeholder="e.g. Alex" /></div>
+      <button class="btn btn-primary" onclick="saveProfile2()">Add profile</button>
+    </div></div>`;
+  push('AddDay','New profile');
+}
+function saveProfile2(){
+  const name=document.getElementById('profName').value.trim();
+  if(!name){toast('Enter a name');return;}
+  profiles.push({name,initial:name[0].toUpperCase(),days:[],history:[]});
+  save();
+  toast(name+' added ✓');
+  goBack(); renderHome();
+}
+
+// ─── LONG PRESS / SHARE ──────────────────────────────────────────────────────
+let _lpTimer=null;
+function startLongPress(i){ _lpTimer=setTimeout(()=>shareDay(i),600); }
+function cancelLongPress(){ clearTimeout(_lpTimer); }
+
+function shareDay(i){
+  const day=S.days[i];
+  if(!day) return;
+  const profile=curProfile().name;
+  let text=`💪 *${profile}'s Training — ${day.name}*\n`;
+  if(day.focus) text+=`Focus: ${day.focus}\n`;
+  text+=`\n`;
+  (day.exercises||[]).forEach(ex=>{
+    text+=`*${ex.name}*`;
+    if(ex.type==='standard') text+=` (${ex.sets} sets × ${ex.reps} reps)`;
+    else if(ex.type==='wave') text+=` (${ex.waveCount} waves)`;
+    else if(ex.type==='super') text+=` ↔ ${ex.pairName}`;
+    else if(ex.type==='drop') text+=` (Drop: ${ex.dropReps?.join('→')})`;
+    // logged sets
+    const sets=ex.logged||[];
+    sets.forEach((s,si)=>{
+      if(s?.reps||s?.weight){
+        text+=`\n  Set ${si+1}: ${s.reps||'?'} reps @ ${s.weight||'?'}kg`;
+        if(s.note) text+=` (${s.note})`;
+      }
+    });
+    text+=`\n`;
+  });
+  text+=`\nLogged with S&C Tracker 🏋️`;
+
+  if(navigator.share){
+    navigator.share({title:'Training Log',text}).catch(()=>{});
+  } else {
+    navigator.clipboard?.writeText(text).then(()=>toast('Copied to clipboard!')).catch(()=>toast('Share not supported'));
+  }
+}
+
 
 // ─── ADD DAY ─────────────────────────────────────────────────────────────────
 function showAddDay(){
@@ -347,11 +445,7 @@ function showAddDay(){
       <div class="form-card">
         <div class="form-row">
           <label class="form-label">Select date</label>
-          <input class="form-input" type="date" id="newDayDate" value="${todayVal}" onchange="onDatePick(this.value)" style="color-scheme:dark" />
-        </div>
-        <div class="form-row">
-          <label class="form-label">Day name</label>
-          <input class="form-input" id="newDayName" placeholder="e.g. Monday 23 Jun" />
+          <input class="form-input" type="date" id="newDayDate" value="${todayVal}" style="color-scheme:dark" />
         </div>
         <div class="form-row">
           <label class="form-label">Focus / muscle group</label>
@@ -361,21 +455,13 @@ function showAddDay(){
       </div>
     </div>`;
   push('AddDay','New day');
-  onDatePick(todayVal);
-}
-
-function onDatePick(val){
-  if(!val) return;
-  const d=new Date(val+'T00:00:00');
-  const dayName=d.toLocaleDateString('en-GB',{weekday:'long'});
-  const dateStr=d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  document.getElementById('newDayName').value=`${dayName} ${dateStr}`;
 }
 
 function saveDay(){
-  const name=document.getElementById('newDayName').value.trim();
   const date=document.getElementById('newDayDate').value;
-  if(!name){toast('Enter a day name');return;}
+  if(!date){toast('Pick a date');return;}
+  const d=new Date(date+'T00:00:00');
+  const name=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short'});
   S.days.push({name,date,focus:document.getElementById('newDayFocus').value.trim(),exercises:[]});
   save(); toast('Day added ✓'); goBack(); renderHome();
 }
@@ -450,13 +536,71 @@ function renderExBody(ex,ei){
   else if(ex.type==='super') html=renderSuper(ex,ei);
   else if(ex.type==='drop') html=renderDrop(ex,ei);
   html+=renderBest1RM(ex,ei);
-  html+=`<button class="btn btn-danger btn-sm" onclick="deleteExercise(${ei})">${svgTrash()} Remove exercise</button>`;
+  html+=`
+    <div style="margin-top:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 12px" id="exActions_${ei}">
+      ${ex.type!=='wave'?`<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+        <span style="font-size:11px;color:var(--muted);flex:1">Sets</span>
+        <button class="btn btn-sm" style="margin-top:0;padding:5px 14px;font-size:16px;line-height:1" onclick="removeSet(${ei})">−</button>
+        <span style="font-size:13px;font-weight:600;min-width:20px;text-align:center">${ex.type==='drop'?(ex.dropReps?.length||1):ex.sets}</span>
+        <button class="btn btn-sm" style="margin-top:0;padding:5px 14px;font-size:16px;line-height:1" onclick="addSet(${ei})">+</button>
+      </div>`:''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" style="flex:1;margin-top:0" onclick="showRenameEx(${ei})">✏️ Rename</button>
+        <button class="btn btn-danger btn-sm" style="flex:1;margin-top:0" onclick="confirmDeleteEx(${ei})">${svgTrash()} Remove</button>
+      </div>
+      <div id="renameBox_${ei}" style="display:none;margin-top:8px">
+        <input class="form-input" id="renameInput_${ei}" placeholder="New exercise name" value="${ex.name}" style="margin-bottom:6px" />
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" style="flex:1;margin-top:0" onclick="saveRenameEx(${ei})">Save</button>
+          <button class="btn btn-sm" style="flex:1;margin-top:0" onclick="hideRenameEx(${ei})">Cancel</button>
+        </div>
+      </div>
+      <div id="deleteBox_${ei}" style="display:none;margin-top:8px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-align:center">Remove "${ex.name}"? This cannot be undone.</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-danger btn-sm" style="flex:1;margin-top:0" onclick="deleteExercise(${ei})">Yes, remove</button>
+          <button class="btn btn-sm" style="flex:1;margin-top:0" onclick="hideDeleteEx(${ei})">Cancel</button>
+        </div>
+      </div>
+    </div>`;
   return html;
+}
+
+function noteRow(ei,si,d,logFn){
+  const hasNote=!!d.note;
+  return `<tr class="note-row" id="noteRow_${ei}_${si}" style="${hasNote?'':'display:none'}">
+    <td colspan="4" style="padding:2px 0 6px">
+      <input class="note-input" placeholder="Note — e.g. 20kg barbell, close grip…" value="${d.note||''}"
+        onchange="${logFn}(${ei},${si},'note',this.value)" />
+    </td>
+  </tr>`;
+}
+function waveNoteRow(ei,wi,si,d){
+  const hasNote=!!d.note;
+  return `<tr class="note-row" id="noteRow_w${ei}_${wi}_${si}" style="${hasNote?'':'display:none'}">
+    <td colspan="5" style="padding:2px 0 6px">
+      <input class="note-input" placeholder="Note — e.g. 20kg barbell…" value="${d.note||''}"
+        onchange="logWave(${ei},${wi},${si},'note',this.value)" />
+    </td>
+  </tr>`;
+}
+function noteBtn(ei,si,d,prefix){
+  const id=prefix?`noteRow_${prefix}${ei}_${si}`:`noteRow_${ei}_${si}`;
+  const hasNote=!!d.note;
+  return `<button class="note-toggle${hasNote?' note-active':''}" onclick="toggleNote('${id}',this)" title="Add note">✎</button>`;
+}
+function toggleNote(rowId,btn){
+  const row=document.getElementById(rowId);
+  if(!row) return;
+  const hidden=row.style.display==='none';
+  row.style.display=hidden?'':'none';
+  btn.classList.toggle('note-active',hidden);
+  if(hidden) row.querySelector('input').focus();
 }
 
 function renderStandard(ex,ei){
   let html=`<table class="log-table"><thead><tr>
-    <th></th><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM est.</th>
+    <th></th><th>Reps</th><th>Weight</th><th>1RM est.</th><th></th>
   </tr></thead><tbody>`;
   for(let s=0;s<ex.sets;s++){
     const d=ex.logged?.[s]||{};
@@ -465,9 +609,9 @@ function renderStandard(ex,ei){
       <td>Set ${s+1}</td>
       <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${d.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
       <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
-      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
       <td><div class="set-rm" id="rm_${ei}_${s}">${rm}</div></td>
-    </tr>`;
+      <td>${noteBtn(ei,s,d,'')}</td>
+    </tr>${noteRow(ei,s,d,'logStd')}`;
   }
   html+=`</tbody></table>`;
   return html;
@@ -478,7 +622,7 @@ function renderWave(ex,ei){
   for(let w=0;w<ex.waveCount;w++){
     const isUp=w%2===0;
     html+=`<div class="wave-sep">Wave ${w+1} — ${isUp?'↑ Build up':'↓ Step down'}</div>`;
-    html+=`<table class="log-table"><thead><tr><th></th><th>Target</th><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody>`;
+    html+=`<table class="log-table"><thead><tr><th></th><th>Target</th><th>Reps</th><th>Weight</th><th>1RM</th><th></th></tr></thead><tbody>`;
     for(let s=0;s<ex.waveSets;s++){
       const cfg=ex.waveCfg?.[w]?.[s]||{};
       const d=ex.waves?.[w]?.[s]||{};
@@ -488,9 +632,9 @@ function renderWave(ex,ei){
         <td style="font-size:10px;color:var(--purple)">${cfg.reps||'?'}r<br>${cfg.pct||'?'}%</td>
         <td><input class="set-input" type="number" min="0" placeholder="${cfg.reps||''}" value="${d.reps||''}" onchange="logWave(${ei},${w},${s},'reps',this.value)" /></td>
         <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logWave(${ei},${w},${s},'weight',this.value)" /></td>
-        <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logWave(${ei},${w},${s},'rpe',this.value)" /></td>
         <td><div class="set-rm" id="rm_w${ei}_${w}_${s}">${rm}</div></td>
-      </tr>`;
+        <td>${noteBtn(ei,s,d,`w${w}_`)}</td>
+      </tr>${waveNoteRow(ei,w,s,d)}`;
     }
     html+=`</tbody></table>`;
   }
@@ -501,30 +645,28 @@ function renderSuper(ex,ei){
   let html='';
   for(let s=0;s<ex.sets;s++){
     html+=`<div style="font-size:11px;color:var(--muted);margin:${s>0?'12px':' 8px'} 0 4px;font-weight:600">— Set ${s+1} —</div>`;
-    // Exercise A
     const a=ex.logged?.[s]||{};
     html+=`<div class="super-label">${ex.name}</div>`;
-    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody><tr>
+    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>1RM</th><th></th></tr></thead><tbody><tr>
       <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${a.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
       <td><input class="set-input" type="number" min="0" placeholder="kg" value="${a.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
-      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${a.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
       <td><div class="set-rm">${a.reps&&a.weight?fmt(calc1RM(a.reps,a.weight))+'kg':'—'}</div></td>
-    </tr></tbody></table>`;
-    // Exercise B
+      <td>${noteBtn(ei,s,a,'')}</td>
+    </tr>${noteRow(ei,s,a,'logStd')}</tbody></table>`;
     const b=ex.logged2?.[s]||{};
     html+=`<div class="super-label super-label-b">${ex.pairName}</div>`;
-    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody><tr>
+    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>1RM</th><th></th></tr></thead><tbody><tr>
       <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${b.reps||''}" onchange="logSuper2(${ei},${s},'reps',this.value)" /></td>
       <td><input class="set-input" type="number" min="0" placeholder="kg" value="${b.weight||''}" onchange="logSuper2(${ei},${s},'weight',this.value)" /></td>
-      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${b.rpe||''}" onchange="logSuper2(${ei},${s},'rpe',this.value)" /></td>
       <td><div class="set-rm">${b.reps&&b.weight?fmt(calc1RM(b.reps,b.weight))+'kg':'—'}</div></td>
-    </tr></tbody></table>`;
+      <td>${noteBtn(ei,s,b,'s2_')}</td>
+    </tr>${noteRow(ei,s,b,'logSuper2')}</tbody></table>`;
   }
   return html;
 }
 
 function renderDrop(ex,ei){
-  let html=`<table class="log-table"><thead><tr><th></th><th>Target reps</th><th>Reps done</th><th>Weight</th><th>RPE</th></tr></thead><tbody>`;
+  let html=`<table class="log-table"><thead><tr><th></th><th>Target</th><th>Reps</th><th>Weight</th><th></th></tr></thead><tbody>`;
   (ex.dropReps||[]).forEach((targetReps,s)=>{
     const d=ex.logged?.[s]||{};
     const isTop=s===0;
@@ -533,11 +675,10 @@ function renderDrop(ex,ei){
       <td style="font-size:12px;color:var(--coral);text-align:center">${targetReps}</td>
       <td><input class="set-input" type="number" min="0" placeholder="${targetReps}" value="${d.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
       <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
-      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
-    </tr>`;
+      <td>${noteBtn(ei,s,d,'')}</td>
+    </tr>${noteRow(ei,s,d,'logStd')}`;
   });
   html+=`</tbody></table>`;
-  // 1RM from top set
   const top=ex.logged?.[0]||{};
   if(top.reps&&top.weight){
     html+=`<div class="rm-block"><div><div class="rm-block-label">Est. 1RM (top set)</div><div class="rm-block-value">${fmt(calc1RM(top.reps,top.weight))} kg</div></div></div>`;
@@ -548,21 +689,18 @@ function renderDrop(ex,ei){
 function renderBest1RM(ex,ei){
   const best=getBest1RM(ex);
   if(!best) return '';
-  const bestRPE=getBestRPE(ex);
   return `<div class="rm-block">
-    <div><div class="rm-block-label">Best 1RM today</div><div class="rm-block-value">${fmt(best.rm)} kg</div>${bestRPE?`<div class="rm-block-sub">RPE ${bestRPE} on best set</div>`:'<div class="rm-block-sub">Epley formula</div>'}</div>
-    <div class="rm-block-right"><div class="rm-block-rpe">${ex.name}</div></div>
+    <div><div class="rm-block-label">Best 1RM today</div><div class="rm-block-value">${fmt(best.rm)} kg</div><div class="rm-block-sub">Epley formula · ${ex.name}</div></div>
   </div>`;
 }
 
 function getBest1RM(ex){
   let best=null;
-  const check=(d)=>{ if(d?.reps&&d?.weight){ const v=calc1RM(d.reps,d.weight); if(!best||v>best.rm) best={rm:v,rpe:d.rpe}; } };
+  const check=(d)=>{ if(d?.reps&&d?.weight){ const v=calc1RM(d.reps,d.weight); if(!best||v>best.rm) best={rm:v}; } };
   if(ex.type==='wave'){ (ex.waves||[]).forEach(w=>(w||[]).forEach(check)); }
   else { (ex.logged||[]).forEach(check); if(ex.type==='super')(ex.logged2||[]).forEach(check); }
   return best;
 }
-function getBestRPE(ex){ const b=getBest1RM(ex); return b?.rpe||null; }
 
 // ─── LOGGING ────────────────────────────────────────────────────────────────
 function getDay(){ return S.days[S.currentDay]; }
@@ -753,10 +891,70 @@ function saveExercise(){
   setTimeout(()=>toggleEx(newIdx),50);
 }
 
+function showRenameEx(ei){
+  document.getElementById('renameBox_'+ei).style.display='block';
+  document.getElementById('deleteBox_'+ei).style.display='none';
+  document.getElementById('renameInput_'+ei).focus();
+}
+function hideRenameEx(ei){ document.getElementById('renameBox_'+ei).style.display='none'; }
+function saveRenameEx(ei){
+  const val=document.getElementById('renameInput_'+ei).value.trim();
+  if(!val){toast('Enter a name');return;}
+  getDay().exercises[ei].name=val;
+  save(); toast('Renamed ✓'); renderDay();
+  setTimeout(()=>toggleEx(ei),50);
+}
+function confirmDeleteEx(ei){
+  document.getElementById('deleteBox_'+ei).style.display='block';
+  document.getElementById('renameBox_'+ei).style.display='none';
+}
+function hideDeleteEx(ei){ document.getElementById('deleteBox_'+ei).style.display='none'; }
+
 function deleteExercise(ei){
-  if(!confirm('Remove this exercise?')) return;
   getDay().exercises.splice(ei,1);
   save(); renderDay();
+  toast('Exercise removed');
+}
+
+function showDeleteDay(i){
+  document.getElementById('deleteDayBox_'+i).style.display='block';
+}
+function hideDeleteDay(i){
+  document.getElementById('deleteDayBox_'+i).style.display='none';
+}
+function deleteDay(i){
+  S.days.splice(i,1);
+  S.history=S.history.filter(h=>h.dayIdx!==i).map(h=>({...h,dayIdx:h.dayIdx>i?h.dayIdx-1:h.dayIdx}));
+  save(); renderHome(); toast('Day removed');
+}
+
+// ─── ADD / REMOVE SETS ───────────────────────────────────────────────────────
+function addSet(ei){
+  const ex=getDay().exercises[ei];
+  if(ex.type==='standard'||ex.type==='super'){
+    ex.sets=(ex.sets||1)+1;
+    if(!ex.logged) ex.logged=[];
+    if(ex.type==='super'&&!ex.logged2) ex.logged2=[];
+  } else if(ex.type==='drop'){
+    const last=ex.dropReps?.[ex.dropReps.length-1]||8;
+    ex.dropReps=[...(ex.dropReps||[]),Math.max(4,last-2)];
+    if(!ex.logged) ex.logged=[];
+  }
+  save(); renderDay(); setTimeout(()=>toggleEx(ei),30);
+}
+function removeSet(ei){
+  const ex=getDay().exercises[ei];
+  if(ex.type==='standard'||ex.type==='super'){
+    if((ex.sets||1)<=1){toast('Need at least 1 set');return;}
+    ex.sets--;
+    ex.logged=(ex.logged||[]).slice(0,ex.sets);
+    if(ex.type==='super') ex.logged2=(ex.logged2||[]).slice(0,ex.sets);
+  } else if(ex.type==='drop'){
+    if((ex.dropReps||[]).length<=1){toast('Need at least 1 drop');return;}
+    ex.dropReps=ex.dropReps.slice(0,-1);
+    ex.logged=(ex.logged||[]).slice(0,ex.dropReps.length);
+  }
+  save(); renderDay(); setTimeout(()=>toggleEx(ei),30);
 }
 
 // ─── STATS ───────────────────────────────────────────────────────────────────
