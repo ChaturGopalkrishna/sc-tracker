@@ -1,4 +1,4 @@
-const CACHE = 'sc-tracker-v1';
+const CACHE = 'sc-tracker-v2';
 const ASSETS = [
   '/sc-tracker/',
   '/sc-tracker/index.html',

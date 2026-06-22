@@ -414,10 +414,8 @@ function showManageProfile(i){
 
         <div class="form-row">
           <label class="form-label">Rename</label>
-          <div style="display:flex;gap:8px">
-            <input class="form-input" id="profRenameInput" value="${pr.name}" style="flex:1" />
-            <button class="btn btn-primary btn-sm" style="margin-top:0;white-space:nowrap" onclick="renameProfile(${i})">Save</button>
-          </div>
+          <input class="form-input" id="profRenameInput" value="${pr.name}" style="margin-bottom:8px" />
+          <button class="btn btn-primary" style="margin-top:0" onclick="renameProfile(${i})">Save name</button>
         </div>
       </div>
 
