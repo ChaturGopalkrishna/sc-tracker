@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>S&C Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;--surface3:#2a2a2a;
+  --border:#2e2e2e;--border2:#3a3a3a;
+  --text:#f0f0f0;--muted:#777;--hint:#444;
+  --accent:#e8c84a;--accent2:#b89e2e;--accent-dim:#2a2310;
+  --blue:#4a9ee8;--green:#4ae88c;--coral:#e86c4a;--purple:#a07de0;
+  --red:#e84a4a;
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+input[type=number]::-webkit-inner-spin-button{opacity:.4}
+
+/* LAYOUT */
+.app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;position:relative}
+.screen{display:none;flex:1;overflow-y:auto;padding-bottom:90px}
+.screen.active{display:block}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;gap:10px;padding:16px 16px 10px;background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar-back{background:none;border:none;color:var(--accent);font-size:14px;display:flex;align-items:center;gap:2px;padding:4px 0;white-space:nowrap}
+.topbar-back svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.topbar-title{font-size:16px;font-weight:600;flex:1}
+.topbar-action{background:none;border:none;color:var(--accent);font-size:22px;line-height:1;padding:2px 4px}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);z-index:50}
+.nav-btn{background:none;border:none;color:var(--muted);padding:10px 0 14px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;letter-spacing:.3px}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn.active{color:var(--accent)}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-body{padding:14px}
+
+/* SECTION LABEL */
+.sec-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:18px 16px 8px}
+
+/* DAY GRID */
+.day-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.day-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 14px 12px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative}
+.day-card:active{transform:scale(.97)}
+.day-card.has-data{border-color:var(--accent2)}
+.day-label-num{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.day-name{font-size:15px;font-weight:600;margin-bottom:4px}
+.day-focus{font-size:12px;color:var(--accent);margin-bottom:6px;line-height:1.3}
+.day-count{font-size:11px;color:var(--hint)}
+.day-delete{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--hint);font-size:18px;line-height:1;padding:2px}
+
+/* EXERCISE LIST */
+.ex-list{display:flex;flex-direction:column;gap:8px;padding:0 16px}
+.ex-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.ex-header{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;cursor:pointer}
+.ex-name{font-size:14px;font-weight:600}
+.ex-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.ex-right{display:flex;align-items:center;gap:8px}
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.3px}
+.badge-standard{background:#1a2a40;color:var(--blue)}
+.badge-wave{background:#22183a;color:var(--purple)}
+.badge-super{background:#0f2a1a;color:var(--green)}
+.badge-drop{background:#2a1510;color:var(--coral)}
+.ex-chevron{color:var(--hint);transition:transform .2s;flex-shrink:0}
+.ex-chevron svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ex-chevron.open{transform:rotate(90deg)}
+.ex-body{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.ex-body.open{display:block}
+
+/* SET LOGGING TABLE */
+.log-table{width:100%;border-collapse:collapse;margin-top:10px}
+.log-table th{font-size:10px;color:var(--hint);text-align:center;padding:0 0 6px;font-weight:500}
+.log-table th:first-child{text-align:left}
+.log-table td{padding:3px 3px}
+.log-table td:first-child{font-size:11px;color:var(--muted);white-space:nowrap;padding-right:8px;padding-left:0}
+.set-input{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--text);font-size:13px;padding:7px 4px;width:100%;text-align:center}
+.set-input:focus{outline:none;border-color:var(--accent)}
+.set-rm{background:var(--accent-dim);border:1px solid transparent;border-radius:var(--radius-xs);color:var(--accent);font-size:12px;font-weight:700;padding:7px 4px;text-align:center;min-width:52px}
+.set-rpe{background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-xs);color:var(--text);font-size:13px;padding:7px 4px;width:100%;text-align:center}
+.set-rpe:focus{outline:none;border-color:var(--accent)}
+
+/* WAVE SECTION */
+.wave-sep{font-size:11px;font-weight:700;color:var(--purple);background:#1e1630;border-radius:6px;padding:4px 10px;margin:10px 0 6px;display:inline-block}
+
+/* SUPERSET DIVIDER */
+.super-label{font-size:11px;color:var(--green);margin:8px 0 4px;font-weight:600}
+.super-label-b{color:var(--blue)}
+
+/* DROP SET */
+.drop-arrow{font-size:10px;color:var(--coral);font-weight:700}
+
+/* 1RM CARD */
+.rm-block{background:var(--accent-dim);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:12px 14px;margin-top:12px;display:flex;justify-content:space-between;align-items:center}
+.rm-block-label{font-size:11px;color:var(--accent2);margin-bottom:2px}
+.rm-block-value{font-size:22px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
+.rm-block-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.rm-block-right{text-align:right}
+.rm-block-rpe{font-size:11px;color:var(--muted)}
+
+/* FORM */
+.form-wrap{padding:0 16px}
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.form-row{margin-bottom:12px}
+.form-row:last-child{margin-bottom:0}
+.form-label{font-size:11px;color:var(--muted);letter-spacing:.5px;margin-bottom:5px;display:block}
+.form-input,.form-select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;width:100%}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--accent)}
+.form-select option{background:#222}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* TYPE PICKER */
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-opt{background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--radius-sm);padding:10px 8px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.type-opt:active{transform:scale(.97)}
+.type-opt.sel{border-color:var(--accent);background:var(--accent-dim)}
+.type-icon{font-size:20px;display:block;margin-bottom:3px}
+.type-name{font-size:12px;font-weight:500;color:var(--text)}
+.type-sub{font-size:10px;color:var(--muted);margin-top:1px}
+
+/* WAVE CONFIG */
+.wave-cfg-row{display:grid;grid-template-columns:60px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px}
+.wave-cfg-label{font-size:11px;color:var(--muted)}
+
+/* BUTTONS */
+.btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:14px;font-weight:500;padding:11px 16px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:10px}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);border-color:var(--accent2);color:#111;font-weight:700}
+.btn-danger{color:var(--red);border-color:#3a1515}
+.btn-sm{font-size:12px;padding:7px 12px;margin-top:6px}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.stat-val{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:-1px}
+.stat-label{font-size:11px;color:var(--muted);margin-top:3px}
+
+.rm-list{padding:0 16px;display:flex;flex-direction:column;gap:7px}
+.rm-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+.rm-row-name{font-size:14px;font-weight:500}
+.rm-row-day{font-size:11px;color:var(--muted);margin-top:1px}
+.rm-row-val{font-size:20px;font-weight:800;color:var(--accent)}
+.rm-row-date{font-size:10px;color:var(--muted);text-align:right;margin-top:1px}
+.rm-row-rpe{font-size:11px;color:var(--muted);text-align:right}
+
+/* HISTORY */
+.history-list{padding:0 16px;display:flex;flex-direction:column;gap:7px}
+.history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.history-date{font-size:12px;color:var(--accent);font-weight:600;margin-bottom:6px}
+.history-ex{font-size:13px;margin-bottom:2px}
+.history-detail{font-size:11px;color:var(--muted)}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 24px;color:var(--hint)}
+.empty-icon{font-size:40px;margin-bottom:10px}
+.empty-title{font-size:14px;color:var(--muted);margin-bottom:4px}
+.empty-sub{font-size:12px}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:20px;font-size:13px;z-index:200;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:480px;padding:20px 16px 36px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.modal-close{float:right;background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+
+/* SESSION */
+.session-bar{background:var(--surface);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;margin:0 16px 10px;display:flex;justify-content:space-between;align-items:center}
+.session-bar span{font-size:12px;color:var(--accent)}
+.session-btn{background:var(--accent);border:none;color:#111;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px}
+
+/* DAY CHIPS */
+.day-chip-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.day-chip{background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--radius-sm);padding:10px 4px;text-align:center;font-size:13px;font-weight:500;cursor:pointer;transition:border-color .15s,background .15s;color:var(--text)}
+.day-chip:active{transform:scale(.95)}
+.day-chip.chip-sel{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.day-chip.chip-used{opacity:.35;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOP BAR -->
+<div class="topbar" id="topbar">
+  <button class="topbar-back" id="backBtn" style="display:none" onclick="goBack()">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> Back
+  </button>
+  <div class="topbar-title" id="topTitle">Training Log</div>
+  <button class="topbar-action" id="topAction" style="display:none" onclick="topActionFn()">+</button>
+</div>
+
+<!-- SCREENS -->
+<div id="screenHome" class="screen active"></div>
+<div id="screenDay" class="screen"></div>
+<div id="screenHistory" class="screen"></div>
+<div id="screenStats" class="screen"></div>
+<div id="screenAddDay" class="screen"></div>
+<div id="screenAddExercise" class="screen"></div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="navHome" onclick="nav('Home')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Days
+  </button>
+  <button class="nav-btn" id="navHistory" onclick="nav('History')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>History
+  </button>
+  <button class="nav-btn" id="navStats" onclick="nav('Stats')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>PRs
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const STORE_KEY = 'sc_tracker_v2';
+let S = {days:[], history:[], currentDay:null, currentDate:null};
+try{ const raw=localStorage.getItem(STORE_KEY); if(raw) S=JSON.parse(raw); }catch(e){}
+S.days=S.days||[]; S.history=S.history||[];
+
+function save(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(S)); }catch(e){} }
+
+// ─── NAV ─────────────────────────────────────────────────────────────────────
+let navStack=['Home'];
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen'+id).classList.add('active');
+}
+
+function nav(id){
+  navStack=[id];
+  showScreen(id);
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav'+id)?.classList.add('active');
+  document.getElementById('backBtn').style.display='none';
+  document.getElementById('topAction').style.display='none';
+  const titles={Home:'Training Log',Stats:'Personal Records',History:'Session History'};
+  document.getElementById('topTitle').textContent=titles[id]||id;
+  if(id==='Home') renderHome();
+  if(id==='Stats') renderStats();
+  if(id==='History') renderHistory();
+}
+
+function push(id,title,actionLabel,actionFn){
+  navStack.push(id);
+  showScreen(id);
+  document.getElementById('backBtn').style.display='flex';
+  document.getElementById('topTitle').textContent=title;
+  const act=document.getElementById('topAction');
+  if(actionLabel){ act.textContent=actionLabel; act.style.display='block'; window._topActionFn=actionFn; }
+  else{ act.style.display='none'; }
+}
+function topActionFn(){ window._topActionFn?.(); }
+
+function goBack(){
+  navStack.pop();
+  const prev=navStack[navStack.length-1];
+  showScreen(prev);
+  const titles={Home:'Training Log',Stats:'Personal Records',History:'Session History'};
+  if(titles[prev]){
+    nav(prev);
+  } else if(prev==='Day'){
+    // Restore the Day screen properly with its topbar action
+    const day=S.days[S.currentDay];
+    document.getElementById('topTitle').textContent=day?day.name:'Day';
+    document.getElementById('backBtn').style.display='flex';
+    const act=document.getElementById('topAction');
+    act.textContent='+ Exercise';
+    act.style.display='block';
+    window._topActionFn=()=>showAddExercise();
+    renderDay();
+  } else {
+    document.getElementById('topTitle').textContent=prev;
+    document.getElementById('backBtn').style.display=navStack.length>1?'flex':'none';
+  }
+}
+
+function toast(msg,dur=2000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function calc1RM(reps,weight){
+  const r=parseFloat(reps),w=parseFloat(weight);
+  if(!r||!w||r<1) return null;
+  if(r===1) return w;
+  return w*(1+r/30);
+}
+function fmt(n,dec=1){ return n==null?'—':parseFloat(n).toFixed(dec); }
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function fmtDate(s){ if(!s)return''; const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function svgChev(){ return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`; }
+function svgTrash(){ return `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`; }
+
+// ─── HOME ─────────────────────────────────────────────────────────────────────
+function renderHome(){
+  const el=document.getElementById('screenHome');
+  if(!S.days.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🏋️</div><div class="empty-title">No training days yet</div><div class="empty-sub">Add your first day to get started</div></div>
+      <div style="padding:0 16px"><button class="btn btn-primary" onclick="showAddDay()">+ Add training day</button></div>`;
+    return;
+  }
+  let html=`<div class="sec-label">Your days</div><div class="day-grid">`;
+  S.days.forEach((d,i)=>{
+    const exCount=d.exercises?.length||0;
+    const lastSession=S.history.filter(h=>h.dayIdx===i).slice(-1)[0];
+    html+=`<div class="day-card${exCount?' has-data':''}" onclick="openDay(${i})">
+      <button class="day-delete" onclick="event.stopPropagation();deleteDay(${i})">${svgTrash()}</button>
+      <div class="day-label-num">Day ${i+1}</div>
+      <div class="day-name">${d.name}</div>
+      <div class="day-focus">${d.focus||'General'}</div>
+      <div class="day-count">${exCount} exercise${exCount!==1?'s':''}</div>
+      ${lastSession?`<div style="font-size:10px;color:var(--hint);margin-top:4px">Last: ${fmtDate(lastSession.date)}</div>`:''}
+    </div>`;
+  });
+  html+=`</div><div style="padding:0 16px"><button class="btn" onclick="showAddDay()" style="margin-top:12px">+ Add training day</button></div>`;
+  el.innerHTML=html;
+}
+
+function deleteDay(i){
+  if(!confirm(`Delete "${S.days[i].name}"?`)) return;
+  S.days.splice(i,1);
+  S.history=S.history.filter(h=>h.dayIdx!==i).map(h=>({...h,dayIdx:h.dayIdx>i?h.dayIdx-1:h.dayIdx}));
+  save(); renderHome();
+}
+
+// ─── ADD DAY ─────────────────────────────────────────────────────────────────
+function showAddDay(){
+  const el=document.getElementById('screenAddDay');
+  const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const existing=new Set(S.days.map(d=>d.name));
+  el.innerHTML=`<div class="sec-label">Pick a day</div>
+    <div class="form-wrap">
+      <div class="form-card">
+        <div class="form-row">
+          <label class="form-label">Day of week</label>
+          <div class="day-chip-grid" id="dayChips">
+            ${days.map(d=>`<div class="day-chip${existing.has(d)?' chip-used':''}" onclick="pickDayChip(this,'${d}')" data-day="${d}">${d.slice(0,3)}</div>`).join('')}
+          </div>
+          <div style="margin-top:10px">
+            <label class="form-label">Or custom name</label>
+            <input class="form-input" id="newDayName" placeholder="e.g. Day A / Upper 1" oninput="clearChips()" />
+          </div>
+        </div>
+        <div class="form-row"><label class="form-label">Focus / muscle group</label><input class="form-input" id="newDayFocus" placeholder="e.g. Lower body · Squats" /></div>
+        <button class="btn btn-primary" onclick="saveDay()">Save day</button>
+      </div>
+    </div>`;
+  push('AddDay','New day');
+}
+
+function pickDayChip(el,name){
+  document.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('chip-sel'));
+  el.classList.add('chip-sel');
+  document.getElementById('newDayName').value=name;
+}
+function clearChips(){
+  document.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('chip-sel'));
+}
+
+function saveDay(){
+  const name=document.getElementById('newDayName').value.trim();
+  if(!name){toast('Pick a day or enter a name');return;}
+  S.days.push({name,focus:document.getElementById('newDayFocus').value.trim(),exercises:[]});
+  save(); toast('Day added ✓'); goBack(); renderHome();
+}
+
+// ─── DAY VIEW ─────────────────────────────────────────────────────────────────
+function openDay(i){
+  S.currentDay=i;
+  S.currentDate=todayStr();
+  renderDay();
+  push('Day',S.days[i].name,'+ Exercise',()=>showAddExercise());
+  navStack[navStack.length-1]='Day';
+}
+
+function renderDay(){
+  const day=S.days[S.currentDay];
+  const el=document.getElementById('screenDay');
+  if(!day){ el.innerHTML=''; return; }
+
+  // Session banner
+  const todaySessions=S.history.filter(h=>h.dayIdx===S.currentDay&&h.date===S.currentDate);
+  const hasSession=todaySessions.length>0;
+  let html=`<div class="session-bar">
+    <span>${hasSession?'📝 Session in progress — '+fmtDate(S.currentDate):'Start logging for '+fmtDate(S.currentDate)}</span>
+    ${hasSession?`<button class="session-btn" onclick="finishSession()">Finish</button>`:''}
+  </div>`;
+
+  if(!day.exercises?.length){
+    html+=`<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">No exercises yet</div><div class="empty-sub">Tap + Exercise at the top to add one</div></div>`;
+  } else {
+    html+=`<div class="sec-label">${day.focus||'Exercises'}</div><div class="ex-list">`;
+    day.exercises.forEach((ex,ei)=>{ html+=renderExCard(ex,ei); });
+    html+=`</div><div style="padding:0 16px"><button class="btn" onclick="showAddExercise()" style="margin-top:10px">+ Add another exercise</button></div>`;
+  }
+  el.innerHTML=html;
+}
+
+function renderExCard(ex,ei){
+  const typeLabels={standard:'Standard',wave:'Wave sets',super:'Superset',drop:'Drop set'};
+  const typeBadge={standard:'badge-standard',wave:'badge-wave',super:'badge-super',drop:'badge-drop'};
+  let meta='';
+  if(ex.type==='standard') meta=`${ex.sets} sets × ${ex.reps} reps`;
+  else if(ex.type==='wave') meta=`${ex.waveCount} waves · ${ex.waveSets} sets`;
+  else if(ex.type==='super') meta=`↔ ${ex.pairName} · ${ex.sets} sets`;
+  else if(ex.type==='drop') meta=`Drop: ${ex.dropReps?.join('→')} reps`;
+
+  return `<div class="ex-card" id="exCard_${ei}">
+    <div class="ex-header" onclick="toggleEx(${ei})">
+      <div>
+        <div class="ex-name">${ex.name}</div>
+        <div class="ex-meta">${meta}</div>
+      </div>
+      <div class="ex-right">
+        <span class="badge ${typeBadge[ex.type]}">${typeLabels[ex.type]}</span>
+        <span class="ex-chevron" id="chev_${ei}">${svgChev()}</span>
+      </div>
+    </div>
+    <div class="ex-body" id="exBody_${ei}">${renderExBody(ex,ei)}</div>
+  </div>`;
+}
+
+function toggleEx(ei){
+  const body=document.getElementById('exBody_'+ei);
+  const chev=document.getElementById('chev_'+ei);
+  const open=body.classList.toggle('open');
+  chev.classList.toggle('open',open);
+}
+
+function renderExBody(ex,ei){
+  let html='';
+  if(ex.type==='standard') html=renderStandard(ex,ei);
+  else if(ex.type==='wave') html=renderWave(ex,ei);
+  else if(ex.type==='super') html=renderSuper(ex,ei);
+  else if(ex.type==='drop') html=renderDrop(ex,ei);
+  html+=renderBest1RM(ex,ei);
+  html+=`<button class="btn btn-danger btn-sm" onclick="deleteExercise(${ei})">${svgTrash()} Remove exercise</button>`;
+  return html;
+}
+
+function renderStandard(ex,ei){
+  let html=`<table class="log-table"><thead><tr>
+    <th></th><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM est.</th>
+  </tr></thead><tbody>`;
+  for(let s=0;s<ex.sets;s++){
+    const d=ex.logged?.[s]||{};
+    const rm=d.reps&&d.weight?fmt(calc1RM(d.reps,d.weight))+'kg':'—';
+    html+=`<tr>
+      <td>Set ${s+1}</td>
+      <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${d.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
+      <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
+      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
+      <td><div class="set-rm" id="rm_${ei}_${s}">${rm}</div></td>
+    </tr>`;
+  }
+  html+=`</tbody></table>`;
+  return html;
+}
+
+function renderWave(ex,ei){
+  let html='';
+  for(let w=0;w<ex.waveCount;w++){
+    const isUp=w%2===0;
+    html+=`<div class="wave-sep">Wave ${w+1} — ${isUp?'↑ Build up':'↓ Step down'}</div>`;
+    html+=`<table class="log-table"><thead><tr><th></th><th>Target</th><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody>`;
+    for(let s=0;s<ex.waveSets;s++){
+      const cfg=ex.waveCfg?.[w]?.[s]||{};
+      const d=ex.waves?.[w]?.[s]||{};
+      const rm=d.reps&&d.weight?fmt(calc1RM(d.reps,d.weight))+'kg':'—';
+      html+=`<tr>
+        <td>S${s+1}</td>
+        <td style="font-size:10px;color:var(--purple)">${cfg.reps||'?'}r<br>${cfg.pct||'?'}%</td>
+        <td><input class="set-input" type="number" min="0" placeholder="${cfg.reps||''}" value="${d.reps||''}" onchange="logWave(${ei},${w},${s},'reps',this.value)" /></td>
+        <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logWave(${ei},${w},${s},'weight',this.value)" /></td>
+        <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logWave(${ei},${w},${s},'rpe',this.value)" /></td>
+        <td><div class="set-rm" id="rm_w${ei}_${w}_${s}">${rm}</div></td>
+      </tr>`;
+    }
+    html+=`</tbody></table>`;
+  }
+  return html;
+}
+
+function renderSuper(ex,ei){
+  let html='';
+  for(let s=0;s<ex.sets;s++){
+    html+=`<div style="font-size:11px;color:var(--muted);margin:${s>0?'12px':' 8px'} 0 4px;font-weight:600">— Set ${s+1} —</div>`;
+    // Exercise A
+    const a=ex.logged?.[s]||{};
+    html+=`<div class="super-label">${ex.name}</div>`;
+    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody><tr>
+      <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${a.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
+      <td><input class="set-input" type="number" min="0" placeholder="kg" value="${a.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
+      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${a.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
+      <td><div class="set-rm">${a.reps&&a.weight?fmt(calc1RM(a.reps,a.weight))+'kg':'—'}</div></td>
+    </tr></tbody></table>`;
+    // Exercise B
+    const b=ex.logged2?.[s]||{};
+    html+=`<div class="super-label super-label-b">${ex.pairName}</div>`;
+    html+=`<table class="log-table"><thead><tr><th>Reps</th><th>Weight</th><th>RPE</th><th>1RM</th></tr></thead><tbody><tr>
+      <td><input class="set-input" type="number" min="0" placeholder="${ex.reps}" value="${b.reps||''}" onchange="logSuper2(${ei},${s},'reps',this.value)" /></td>
+      <td><input class="set-input" type="number" min="0" placeholder="kg" value="${b.weight||''}" onchange="logSuper2(${ei},${s},'weight',this.value)" /></td>
+      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${b.rpe||''}" onchange="logSuper2(${ei},${s},'rpe',this.value)" /></td>
+      <td><div class="set-rm">${b.reps&&b.weight?fmt(calc1RM(b.reps,b.weight))+'kg':'—'}</div></td>
+    </tr></tbody></table>`;
+  }
+  return html;
+}
+
+function renderDrop(ex,ei){
+  let html=`<table class="log-table"><thead><tr><th></th><th>Target reps</th><th>Reps done</th><th>Weight</th><th>RPE</th></tr></thead><tbody>`;
+  (ex.dropReps||[]).forEach((targetReps,s)=>{
+    const d=ex.logged?.[s]||{};
+    const isTop=s===0;
+    html+=`<tr>
+      <td style="color:${isTop?'var(--accent)':'var(--muted)'}">${isTop?'🔝':'↓'} D${s+1}</td>
+      <td style="font-size:12px;color:var(--coral);text-align:center">${targetReps}</td>
+      <td><input class="set-input" type="number" min="0" placeholder="${targetReps}" value="${d.reps||''}" onchange="logStd(${ei},${s},'reps',this.value)" /></td>
+      <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logStd(${ei},${s},'weight',this.value)" /></td>
+      <td><input class="set-rpe" type="number" min="1" max="10" step=".5" placeholder="—" value="${d.rpe||''}" onchange="logStd(${ei},${s},'rpe',this.value)" /></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  // 1RM from top set
+  const top=ex.logged?.[0]||{};
+  if(top.reps&&top.weight){
+    html+=`<div class="rm-block"><div><div class="rm-block-label">Est. 1RM (top set)</div><div class="rm-block-value">${fmt(calc1RM(top.reps,top.weight))} kg</div></div></div>`;
+  }
+  return html;
+}
+
+function renderBest1RM(ex,ei){
+  const best=getBest1RM(ex);
+  if(!best) return '';
+  const bestRPE=getBestRPE(ex);
+  return `<div class="rm-block">
+    <div><div class="rm-block-label">Best 1RM today</div><div class="rm-block-value">${fmt(best.rm)} kg</div>${bestRPE?`<div class="rm-block-sub">RPE ${bestRPE} on best set</div>`:'<div class="rm-block-sub">Epley formula</div>'}</div>
+    <div class="rm-block-right"><div class="rm-block-rpe">${ex.name}</div></div>
+  </div>`;
+}
+
+function getBest1RM(ex){
+  let best=null;
+  const check=(d)=>{ if(d?.reps&&d?.weight){ const v=calc1RM(d.reps,d.weight); if(!best||v>best.rm) best={rm:v,rpe:d.rpe}; } };
+  if(ex.type==='wave'){ (ex.waves||[]).forEach(w=>(w||[]).forEach(check)); }
+  else { (ex.logged||[]).forEach(check); if(ex.type==='super')(ex.logged2||[]).forEach(check); }
+  return best;
+}
+function getBestRPE(ex){ const b=getBest1RM(ex); return b?.rpe||null; }
+
+// ─── LOGGING ────────────────────────────────────────────────────────────────
+function getDay(){ return S.days[S.currentDay]; }
+
+function logStd(ei,si,field,val){
+  const ex=getDay().exercises[ei];
+  if(!ex.logged) ex.logged=[];
+  if(!ex.logged[si]) ex.logged[si]={};
+  ex.logged[si][field]=val;
+  save(); updateRM(ei,si,ex.logged[si]);
+  autosaveSession();
+}
+function logWave(ei,wi,si,field,val){
+  const ex=getDay().exercises[ei];
+  if(!ex.waves) ex.waves=[];
+  if(!ex.waves[wi]) ex.waves[wi]=[];
+  if(!ex.waves[wi][si]) ex.waves[wi][si]={};
+  ex.waves[wi][si][field]=val;
+  save();
+  const d=ex.waves[wi][si];
+  const el=document.getElementById(`rm_w${ei}_${wi}_${si}`);
+  if(el) el.textContent=d.reps&&d.weight?fmt(calc1RM(d.reps,d.weight))+'kg':'—';
+  autosaveSession();
+}
+function logSuper2(ei,si,field,val){
+  const ex=getDay().exercises[ei];
+  if(!ex.logged2) ex.logged2=[];
+  if(!ex.logged2[si]) ex.logged2[si]={};
+  ex.logged2[si][field]=val;
+  save(); autosaveSession();
+}
+
+function updateRM(ei,si,d){
+  const el=document.getElementById(`rm_${ei}_${si}`);
+  if(el) el.textContent=d?.reps&&d?.weight?fmt(calc1RM(d.reps,d.weight))+'kg':'—';
+}
+
+// ─── SESSION ─────────────────────────────────────────────────────────────────
+function autosaveSession(){
+  const day=getDay(); if(!day) return;
+  const existing=S.history.findIndex(h=>h.dayIdx===S.currentDay&&h.date===S.currentDate);
+  const snapshot={
+    dayIdx:S.currentDay, date:S.currentDate, dayName:day.name, focus:day.focus,
+    exercises:JSON.parse(JSON.stringify(day.exercises))
+  };
+  if(existing>=0) S.history[existing]=snapshot;
+  else S.history.push(snapshot);
+  save();
+}
+
+function finishSession(){
+  autosaveSession();
+  toast('Session saved ✓'); 
+  renderDay();
+}
+
+// ─── ADD EXERCISE ─────────────────────────────────────────────────────────────
+let selType='standard';
+
+function showAddExercise(){
+  selType='standard';
+  const el=document.getElementById('screenAddExercise');
+  el.innerHTML=`
+    <div class="sec-label">Add exercise</div>
+    <div class="form-wrap">
+      <div class="form-card">
+        <div class="form-row"><label class="form-label">Exercise name</label><input class="form-input" id="newExName" placeholder="e.g. Back Squat" /></div>
+        <div class="form-row"><label class="form-label">Set type</label>
+          <div class="type-grid">
+            <div class="type-opt sel" data-t="standard" onclick="pickType(this)"><span class="type-icon">🏋️</span><div class="type-name">Standard</div><div class="type-sub">Sets × reps</div></div>
+            <div class="type-opt" data-t="wave" onclick="pickType(this)"><span class="type-icon">〰️</span><div class="type-name">Wave sets</div><div class="type-sub">Progressive waves</div></div>
+            <div class="type-opt" data-t="super" onclick="pickType(this)"><span class="type-icon">🔄</span><div class="type-name">Superset</div><div class="type-sub">Alternate 2 exercises</div></div>
+            <div class="type-opt" data-t="drop" onclick="pickType(this)"><span class="type-icon">📉</span><div class="type-name">Drop set</div><div class="type-sub">Descending weight</div></div>
+          </div>
+        </div>
+      </div>
+      <div id="typeConfig"></div>
+      <button class="btn btn-primary" onclick="saveExercise()">Add exercise</button>
+    </div>`;
+  renderTypeConfig();
+  push('AddExercise','Add exercise');
+}
+
+function pickType(el){
+  document.querySelectorAll('.type-opt').forEach(o=>o.classList.remove('sel'));
+  el.classList.add('sel');
+  selType=el.dataset.t;
+  renderTypeConfig();
+}
+
+function renderTypeConfig(){
+  const el=document.getElementById('typeConfig');
+  if(!el) return;
+  if(selType==='standard'){
+    el.innerHTML=`<div class="form-card">
+      <div class="form-grid">
+        <div class="form-row"><label class="form-label">Sets</label><input class="form-input" id="cfgSets" type="number" min="1" value="3" /></div>
+        <div class="form-row"><label class="form-label">Reps per set</label><input class="form-input" id="cfgReps" type="number" min="1" value="8" /></div>
+      </div>
+    </div>`;
+  } else if(selType==='wave'){
+    el.innerHTML=`<div class="form-card">
+      <div class="form-grid">
+        <div class="form-row"><label class="form-label">Waves</label>
+          <select class="form-select" id="cfgWaves" onchange="renderWaveCfg()"><option value="2">2 waves</option><option value="3">3 waves</option><option value="4">4 waves</option></select>
+        </div>
+        <div class="form-row"><label class="form-label">Sets per wave</label>
+          <select class="form-select" id="cfgWSets" onchange="renderWaveCfg()"><option value="3">3 sets</option><option value="4" selected>4 sets</option><option value="5">5 sets</option><option value="6">6 sets</option></select>
+        </div>
+      </div>
+      <div id="waveCfgRows"></div>
+    </div>`;
+    renderWaveCfg();
+  } else if(selType==='super'){
+    el.innerHTML=`<div class="form-card">
+      <div class="form-row"><label class="form-label">Paired exercise</label><input class="form-input" id="cfgPair" placeholder="e.g. Leg Curl" /></div>
+      <div class="form-grid">
+        <div class="form-row"><label class="form-label">Sets</label><input class="form-input" id="cfgSets" type="number" min="1" value="3" /></div>
+        <div class="form-row"><label class="form-label">Reps each</label><input class="form-input" id="cfgReps" type="number" min="1" value="10" /></div>
+      </div>
+    </div>`;
+  } else if(selType==='drop'){
+    el.innerHTML=`<div class="form-card">
+      <div class="form-row"><label class="form-label">Rep counts per drop (comma separated)</label><input class="form-input" id="cfgDropReps" value="12, 10, 8, 8" placeholder="12, 10, 8, 8" /></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">First = heaviest weight, each drop reduces weight</div>
+    </div>`;
+  }
+}
+
+function renderWaveCfg(){
+  const waves=parseInt(document.getElementById('cfgWaves')?.value||2);
+  const sets=parseInt(document.getElementById('cfgWSets')?.value||4);
+  const defRepsUp=[6,5,4,3,2,1];
+  const defRepsDown=[3,4,5,6,7,8];
+  const defPctUp=[70,75,80,85,90,95];
+  const defPctDown=[85,80,75,70,65,60];
+  let html='<div style="margin-top:10px">';
+  for(let w=0;w<waves;w++){
+    const isUp=w%2===0;
+    html+=`<div class="wave-sep" style="margin-bottom:6px">Wave ${w+1} — ${isUp?'↑ Build up':'↓ Step down'}</div>`;
+    html+=`<div style="display:grid;grid-template-columns:50px 1fr 1fr;gap:4px;margin-bottom:4px"><span class="wave-cfg-label"></span><span style="font-size:10px;color:var(--hint);text-align:center">Reps</span><span style="font-size:10px;color:var(--hint);text-align:center">% 1RM</span></div>`;
+    for(let s=0;s<sets;s++){
+      html+=`<div class="wave-cfg-row">
+        <span class="wave-cfg-label">Set ${s+1}</span>
+        <input class="set-input" type="number" id="wR_${w}_${s}" value="${isUp?defRepsUp[s]||3:defRepsDown[s]||3}" />
+        <input class="set-input" type="number" id="wP_${w}_${s}" value="${isUp?defPctUp[s]||70:defPctDown[s]||70}" />
+      </div>`;
+    }
+  }
+  html+='</div>';
+  document.getElementById('waveCfgRows').innerHTML=html;
+}
+
+function saveExercise(){
+  const name=document.getElementById('newExName').value.trim();
+  if(!name){toast('Enter exercise name');return;}
+  let ex={name,type:selType};
+  if(selType==='standard'){
+    ex.sets=parseInt(document.getElementById('cfgSets').value)||3;
+    ex.reps=parseInt(document.getElementById('cfgReps').value)||8;
+    ex.logged=[];
+  } else if(selType==='wave'){
+    const wc=parseInt(document.getElementById('cfgWaves').value);
+    const ws=parseInt(document.getElementById('cfgWSets').value);
+    ex.waveCount=wc; ex.waveSets=ws; ex.waveCfg=[];
+    for(let w=0;w<wc;w++){
+      ex.waveCfg[w]=[];
+      for(let s=0;s<ws;s++){
+        ex.waveCfg[w][s]={reps:parseInt(document.getElementById(`wR_${w}_${s}`).value)||6,pct:parseInt(document.getElementById(`wP_${w}_${s}`).value)||70};
+      }
+    }
+    ex.waves=[];
+  } else if(selType==='super'){
+    ex.pairName=document.getElementById('cfgPair').value.trim()||'Paired exercise';
+    ex.sets=parseInt(document.getElementById('cfgSets').value)||3;
+    ex.reps=parseInt(document.getElementById('cfgReps').value)||10;
+    ex.logged=[]; ex.logged2=[];
+  } else if(selType==='drop'){
+    ex.dropReps=document.getElementById('cfgDropReps').value.split(',').map(v=>parseInt(v.trim())).filter(Boolean);
+    if(!ex.dropReps.length) ex.dropReps=[12,10,8,8];
+    ex.logged=[];
+  }
+  getDay().exercises.push(ex);
+  save(); toast('Exercise added ✓');
+  goBack(); renderDay();
+  // Auto-expand the newly added exercise
+  const newIdx=getDay().exercises.length-1;
+  setTimeout(()=>toggleEx(newIdx),50);
+}
+
+function deleteExercise(ei){
+  if(!confirm('Remove this exercise?')) return;
+  getDay().exercises.splice(ei,1);
+  save(); renderDay();
+}
+
+// ─── STATS ───────────────────────────────────────────────────────────────────
+function renderStats(){
+  const el=document.getElementById('screenStats');
+  const allRMs=[];
+  let totalEx=0, totalSessions=S.history.length;
+  S.days.forEach((day,di)=>{
+    (day.exercises||[]).forEach(ex=>{
+      totalEx++;
+      const best=getBest1RM(ex);
+      if(best) allRMs.push({name:ex.name,day:day.name,rm:best.rm,rpe:best.rpe});
+    });
+  });
+  // Also pull from history
+  const historyRMs={};
+  S.history.forEach(h=>{
+    (h.exercises||[]).forEach(ex=>{
+      const best=getBest1RM(ex);
+      if(best){
+        const key=ex.name;
+        if(!historyRMs[key]||best.rm>historyRMs[key].rm) historyRMs[key]={name:ex.name,day:h.dayName,rm:best.rm,date:h.date,rpe:best.rpe};
+      }
+    });
+  });
+  const allHistRMs=Object.values(historyRMs).sort((a,b)=>b.rm-a.rm);
+  let html=`<div class="sec-label">Overview</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val">${S.days.length}</div><div class="stat-label">Training days</div></div>
+      <div class="stat-card"><div class="stat-val">${totalSessions}</div><div class="stat-label">Sessions logged</div></div>
+      <div class="stat-card"><div class="stat-val">${totalEx}</div><div class="stat-label">Exercises</div></div>
+      <div class="stat-card"><div class="stat-val">${allHistRMs.length?fmt(allHistRMs[0].rm)+' kg':'—'}</div><div class="stat-label">Top 1RM</div></div>
+    </div>`;
+  html+=`<div class="sec-label">All-time estimated 1RMs</div>`;
+  if(!allHistRMs.length){
+    html+=`<div class="empty"><div class="empty-icon">🏆</div><div class="empty-title">No 1RM data yet</div><div class="empty-sub">Log reps + weight to see estimates</div></div>`;
+  } else {
+    html+=`<div class="rm-list">`;
+    allHistRMs.forEach(r=>{
+      html+=`<div class="rm-row">
+        <div><div class="rm-row-name">${r.name}</div><div class="rm-row-day">${r.day}</div></div>
+        <div><div class="rm-row-val">${fmt(r.rm)} kg</div><div class="rm-row-date">${fmtDate(r.date)}</div>${r.rpe?`<div class="rm-row-rpe">RPE ${r.rpe}</div>`:''}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  el.innerHTML=html;
+}
+
+// ─── HISTORY ─────────────────────────────────────────────────────────────────
+function renderHistory(){
+  const el=document.getElementById('screenHistory');
+  const sorted=[...S.history].sort((a,b)=>b.date.localeCompare(a.date));
+  if(!sorted.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Finish a session to see it here</div></div>`;
+    return;
+  }
+  // Group by date
+  const byDate={};
+  sorted.forEach(h=>{
+    if(!byDate[h.date]) byDate[h.date]=[];
+    byDate[h.date].push(h);
+  });
+  let html='<div class="history-list">';
+  Object.entries(byDate).forEach(([date,sessions])=>{
+    html+=`<div class="history-item"><div class="history-date">📅 ${fmtDate(date)}</div>`;
+    sessions.forEach(h=>{
+      html+=`<div class="history-ex" style="font-weight:600">${h.dayName}${h.focus?' · '+h.focus:''}</div>`;
+      (h.exercises||[]).forEach(ex=>{
+        const best=getBest1RM(ex);
+        let detail='';
+        if(ex.type==='standard') detail=`${ex.sets} sets × ${ex.reps} reps`;
+        else if(ex.type==='wave') detail=`${ex.waveCount} waves`;
+        else if(ex.type==='super') detail=`Superset with ${ex.pairName}`;
+        else if(ex.type==='drop') detail=`Drop set`;
+        html+=`<div class="history-detail">${ex.name} — ${detail}${best?` · 1RM ~${fmt(best.rm)}kg`:''}</div>`;
+      });
+    });
+    html+=`</div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+renderHome();
+</script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js")
+      .then(r=>console.log("SW registered"))
+      .catch(e=>console.log("SW failed",e));
+  });
+}
+</script>
+</body>
+</html>
