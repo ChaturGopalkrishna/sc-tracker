@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>S&C Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="S&amp;C">
+<meta name="theme-color" content="#0f0f0f">
+<title>S&amp;C Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -676,7 +683,7 @@ function noteRow(ei,si,d,logFn){
 function waveNoteRow(ei,wi,si,d){
   const hasNote=!!d.note;
   return `<tr class="note-row" id="noteRow_w${ei}_${wi}_${si}" style="${hasNote?'':'display:none'}">
-    <td colspan="5" style="padding:2px 0 6px">
+    <td colspan="7" style="padding:2px 0 6px">
       <input class="note-input" placeholder="Note — e.g. 20kg barbell…" value="${d.note||''}"
         onchange="logWave(${ei},${wi},${si},'note',this.value)" />
     </td>
@@ -716,25 +723,51 @@ function renderStandard(ex,ei){
 }
 
 function renderWave(ex,ei){
+  // Try to get best known 1RM for this exercise from history to show suggested weights
+  let known1RM=null;
+  S.history.forEach(h=>{
+    (h.exercises||[]).forEach(hEx=>{
+      if(hEx.name===ex.name){
+        const b=getBest1RM(hEx);
+        if(b&&(!known1RM||b.rm>known1RM)) known1RM=b.rm;
+      }
+    });
+  });
+
   let html='';
   for(let w=0;w<ex.waveCount;w++){
     const isUp=w%2===0;
     html+=`<div class="wave-sep">Wave ${w+1} — ${isUp?'↑ Build up':'↓ Step down'}</div>`;
-    html+=`<table class="log-table"><thead><tr><th></th><th>Target</th><th>Reps</th><th>Weight</th><th>1RM</th><th></th></tr></thead><tbody>`;
+    html+=`<table class="log-table"><thead><tr>
+      <th></th>
+      <th>Target<br><span style="font-size:9px;color:var(--hint)">reps · %</span></th>
+      <th>Suggested<br><span style="font-size:9px;color:var(--hint)">kg</span></th>
+      <th>Actual<br><span style="font-size:9px;color:var(--hint)">reps</span></th>
+      <th>Actual<br><span style="font-size:9px;color:var(--hint)">kg</span></th>
+      <th>1RM</th>
+      <th></th>
+    </tr></thead><tbody>`;
     for(let s=0;s<ex.waveSets;s++){
       const cfg=ex.waveCfg?.[w]?.[s]||{};
       const d=ex.waves?.[w]?.[s]||{};
       const rm=d.reps&&d.weight?fmt(calc1RM(d.reps,d.weight))+'kg':'—';
+      const suggestedKg=known1RM&&cfg.pct ? Math.round(known1RM*(cfg.pct/100)*2)/2 : null;
       html+=`<tr>
         <td>S${s+1}</td>
-        <td style="font-size:10px;color:var(--purple)">${cfg.reps||'?'}r<br>${cfg.pct||'?'}%</td>
-        <td><input class="set-input" type="number" min="0" placeholder="${cfg.reps||''}" value="${d.reps||''}" onchange="logWave(${ei},${w},${s},'reps',this.value)" /></td>
-        <td><input class="set-input" type="number" min="0" placeholder="kg" value="${d.weight||''}" onchange="logWave(${ei},${w},${s},'weight',this.value)" /></td>
+        <td style="font-size:11px;color:var(--purple);text-align:center">${cfg.reps||'?'}r<br>${cfg.pct||'?'}%</td>
+        <td style="text-align:center"><div style="font-size:12px;font-weight:600;color:${suggestedKg?'var(--accent2)':'var(--hint)'}">${suggestedKg?suggestedKg+'kg':'—'}</div></td>
+        <td><input class="set-input" type="number" min="0" placeholder="${cfg.reps||'?'}" value="${d.reps||''}" onchange="logWave(${ei},${w},${s},'reps',this.value)" /></td>
+        <td><input class="set-input" type="number" min="0" step="0.5" placeholder="kg" value="${d.weight||''}" onchange="logWave(${ei},${w},${s},'weight',this.value)" /></td>
         <td><div class="set-rm" id="rm_w${ei}_${w}_${s}">${rm}</div></td>
         <td>${noteBtn(ei,s,d,`w${w}_`)}</td>
       </tr>${waveNoteRow(ei,w,s,d)}`;
     }
     html+=`</tbody></table>`;
+    if(known1RM){
+      html+=`<div style="font-size:10px;color:var(--hint);margin:4px 0 8px;text-align:right">Suggested weights based on 1RM ~${fmt(known1RM)}kg</div>`;
+    } else {
+      html+=`<div style="font-size:10px;color:var(--hint);margin:4px 0 8px;text-align:right">Log a 1RM set first to see suggested weights</div>`;
+    }
   }
   return html;
 }
