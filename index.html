@@ -353,7 +353,15 @@ function renderHome(){
     return;
   }
   let html=profHtml+`<div class="sec-label">Your days</div><div class="day-grid">`;
-  S.days.forEach((d,i)=>{
+  // Build array of {day, originalIndex} sorted by date (oldest first); undated days go last in insertion order
+  const indexed=S.days.map((d,i)=>({d,i}));
+  indexed.sort((a,b)=>{
+    if(a.d.date&&b.d.date) return a.d.date.localeCompare(b.d.date);
+    if(a.d.date&&!b.d.date) return -1;
+    if(!a.d.date&&b.d.date) return 1;
+    return a.i-b.i;
+  });
+  indexed.forEach(({d,i})=>{
     const exCount=d.exercises?.length||0;
     const lastSession=S.history.filter(h=>h.dayIdx===i).slice(-1)[0];
     html+=`<div class="day-card${exCount?' has-data':''}" id="dayCard_${i}"
@@ -585,10 +593,44 @@ function renderDay(){
   const el=document.getElementById('screenDay');
   if(!day){ el.innerHTML=''; return; }
 
+  // Editable day info card
+  let html=`<div style="padding:0 16px">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-body" id="dayInfoView_${S.currentDay}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:11px;color:var(--accent);margin-bottom:2px">${day.date?fmtDate(day.date):''}</div>
+            <div style="font-size:15px;font-weight:600">${day.name}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${day.focus||'No focus set'}</div>
+          </div>
+          <button class="btn btn-sm" style="margin-top:0;width:auto;padding:6px 12px" onclick="showEditDay()">✏️ Edit</button>
+        </div>
+      </div>
+      <div class="card-body" id="dayInfoEdit_${S.currentDay}" style="display:none;border-top:1px solid var(--border)">
+        <div class="form-row">
+          <label class="form-label">Date</label>
+          <input class="form-input" type="date" id="editDayDate" value="${day.date||''}" style="color-scheme:dark" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Day name</label>
+          <input class="form-input" id="editDayName" value="${day.name}" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Focus / muscle group</label>
+          <input class="form-input" id="editDayFocus" value="${day.focus||''}" />
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" style="flex:1;margin-top:0" onclick="saveEditDay()">Save</button>
+          <button class="btn btn-sm" style="flex:1;margin-top:0" onclick="hideEditDay()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
   // Session banner
   const todaySessions=S.history.filter(h=>h.dayIdx===S.currentDay&&h.date===S.currentDate);
   const hasSession=todaySessions.length>0;
-  let html=`<div class="session-bar">
+  html+=`<div class="session-bar">
     <span>${hasSession?'📝 Session in progress — '+fmtDate(S.currentDate):'Start logging for '+fmtDate(S.currentDate)}</span>
     ${hasSession?`<button class="session-btn" onclick="finishSession()">Finish</button>`:''}
   </div>`;
@@ -601,6 +643,28 @@ function renderDay(){
     html+=`</div><div style="padding:0 16px"><button class="btn" onclick="showAddExercise()" style="margin-top:10px">+ Add another exercise</button></div>`;
   }
   el.innerHTML=html;
+}
+
+function showEditDay(){
+  document.getElementById('dayInfoView_'+S.currentDay).style.display='none';
+  document.getElementById('dayInfoEdit_'+S.currentDay).style.display='block';
+}
+function hideEditDay(){
+  document.getElementById('dayInfoView_'+S.currentDay).style.display='block';
+  document.getElementById('dayInfoEdit_'+S.currentDay).style.display='none';
+}
+function saveEditDay(){
+  const name=document.getElementById('editDayName').value.trim();
+  const date=document.getElementById('editDayDate').value;
+  const focus=document.getElementById('editDayFocus').value.trim();
+  if(!name){toast('Enter a day name');return;}
+  const day=S.days[S.currentDay];
+  day.name=name; day.date=date; day.focus=focus;
+  save();
+  toast('Day updated ✓');
+  renderDay();
+  // also refresh the topbar title since it shows the day name
+  document.getElementById('topTitle').textContent=name;
 }
 
 function renderExCard(ex,ei){
@@ -1031,8 +1095,23 @@ function hideRenameEx(ei){ document.getElementById('renameBox_'+ei).style.displa
 function saveRenameEx(ei){
   const val=document.getElementById('renameInput_'+ei).value.trim();
   if(!val){toast('Enter a name');return;}
+  const oldName=getDay().exercises[ei].name;
   getDay().exercises[ei].name=val;
-  save(); toast('Renamed ✓'); renderDay();
+
+  // Retroactively rename this exercise in past history snapshots for this same training day,
+  // so the PR tab merges old + new entries instead of treating them as different exercises.
+  let updated=0;
+  S.history.forEach(h=>{
+    if(h.dayIdx===S.currentDay){
+      (h.exercises||[]).forEach(hEx=>{
+        if(hEx.name===oldName){ hEx.name=val; updated++; }
+      });
+    }
+  });
+
+  save();
+  toast(updated>0?`Renamed ✓ (updated ${updated} past session${updated!==1?'s':''})`:'Renamed ✓');
+  renderDay();
   setTimeout(()=>toggleEx(ei),50);
 }
 function confirmDeleteEx(ei){
@@ -1112,6 +1191,7 @@ function renderStats(){
     });
   });
   const allHistRMs=Object.values(historyRMs).sort((a,b)=>b.rm-a.rm);
+  const allNames=Object.keys(historyRMs);
   let html=`<div class="sec-label">Overview</div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-val">${S.days.length}</div><div class="stat-label">Training days</div></div>
@@ -1125,14 +1205,50 @@ function renderStats(){
   } else {
     html+=`<div class="rm-list">`;
     allHistRMs.forEach(r=>{
-      html+=`<div class="rm-row">
-        <div><div class="rm-row-name">${r.name}</div><div class="rm-row-day">${r.day}</div></div>
-        <div><div class="rm-row-val">${fmt(r.rm)} kg</div><div class="rm-row-date">${fmtDate(r.date)}</div>${r.rpe?`<div class="rm-row-rpe">RPE ${r.rpe}</div>`:''}</div>
+      html+=`<div class="rm-row" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div class="rm-row-name">${r.name}</div><div class="rm-row-day">${r.day}</div></div>
+          <div><div class="rm-row-val">${fmt(r.rm)} kg</div><div class="rm-row-date">${fmtDate(r.date)}</div>${r.rpe?`<div class="rm-row-rpe">RPE ${r.rpe}</div>`:''}</div>
+        </div>
       </div>`;
     });
     html+=`</div>`;
+    if(allNames.length>1){
+      html+=`<div class="form-wrap" style="margin-top:16px"><div class="form-card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">See duplicate entries for the same exercise (e.g. "Back Squat" and "BB Back Squat")? Merge them into one name — all historical numbers are kept, just relabeled.</div>
+        <div class="form-row">
+          <label class="form-label">Merge this exercise…</label>
+          <select class="form-select" id="mergeFrom">${allNames.map(n=>`<option value="${n}">${n}</option>`).join('')}</select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">…into this one</label>
+          <select class="form-select" id="mergeInto">${allNames.map(n=>`<option value="${n}">${n}</option>`).join('')}</select>
+        </div>
+        <button class="btn btn-primary" onclick="mergeExerciseNames()">Merge</button>
+      </div></div>`;
+    }
   }
   el.innerHTML=html;
+}
+
+function mergeExerciseNames(){
+  const from=document.getElementById('mergeFrom').value;
+  const into=document.getElementById('mergeInto').value;
+  if(from===into){ toast('Pick two different names'); return; }
+  let updated=0;
+  S.history.forEach(h=>{
+    (h.exercises||[]).forEach(ex=>{
+      if(ex.name===from){ ex.name=into; updated++; }
+    });
+  });
+  S.days.forEach(day=>{
+    (day.exercises||[]).forEach(ex=>{
+      if(ex.name===from){ ex.name=into; }
+    });
+  });
+  save();
+  toast(`Merged ✓ (${updated} entr${updated!==1?'ies':'y'} updated)`);
+  renderStats();
 }
 
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
